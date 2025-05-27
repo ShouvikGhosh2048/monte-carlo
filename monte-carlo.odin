@@ -7,7 +7,7 @@ import "core:thread"
 import "core:sync"
 
 // Calculate monte carlo integral with n samples.
-polynomial_monte_carlo_single_thread :: proc (
+polynomial_monte_carlo_integral_single_thread :: proc (
     number_of_variables: i32,
     max_degrees: [^]i32,
     coefficients: [^]f32,
@@ -69,7 +69,7 @@ polynomial_monte_carlo_single_thread :: proc (
 
 // Calculate the grid integral, by evaluating the function at the midpoint of each cell.
 // Sum the cells with the first dimension following the given offset and stride.
-polynomial_grid_midpoint_single_thread :: proc (
+polynomial_grid_midpoint_integral_single_thread :: proc (
     number_of_variables: i32,
     max_degrees: [^]i32,
     coefficients: [^]f32,
@@ -157,7 +157,7 @@ Thread_Data :: struct {
 // TODO:
 // Check thread safety of rand
 @export
-polynomial_monte_carlo :: proc "c" (
+polynomial_monte_carlo_integral :: proc "c" (
     number_of_variables: i32,
     max_degrees: [^]i32,
     coefficients: [^]f32,
@@ -167,7 +167,7 @@ polynomial_monte_carlo :: proc "c" (
     context = runtime.default_context()
 
     if n < 8 {
-        return polynomial_monte_carlo_single_thread(number_of_variables, max_degrees, coefficients, region, n)
+        return polynomial_monte_carlo_integral_single_thread(number_of_variables, max_degrees, coefficients, region, n)
     }
 
     threads_data : [7]Thread_Data
@@ -193,13 +193,13 @@ polynomial_monte_carlo :: proc "c" (
             &threads_data[i],
             proc(started: ^sync.Wait_Group, data: ^Thread_Data) {
                 sync.wait_group_done(started)
-                data.res = polynomial_monte_carlo_single_thread(data.number_of_variables, data.max_degrees, data.coefficients, data.region, data.n)
+                data.res = polynomial_monte_carlo_integral_single_thread(data.number_of_variables, data.max_degrees, data.coefficients, data.region, data.n)
             }
         )
     }
     sync.wait_group_wait(&started)
 
-    res := polynomial_monte_carlo_single_thread(number_of_variables, max_degrees, coefficients, region, n - 7 * (n / 8)) * f32(n - 7 * (n / 8))
+    res := polynomial_monte_carlo_integral_single_thread(number_of_variables, max_degrees, coefficients, region, n - 7 * (n / 8)) * f32(n - 7 * (n / 8))
 
     for i in 0..<7 {
         thread.join(threads[i])
@@ -213,7 +213,7 @@ polynomial_monte_carlo :: proc "c" (
 }
 
 @export
-polynomial_grid_midpoint :: proc "c" (
+polynomial_grid_midpoint_integral :: proc "c" (
     number_of_variables: i32,
     max_degrees: [^]i32,
     coefficients: [^]f32,
@@ -223,7 +223,7 @@ polynomial_grid_midpoint :: proc "c" (
     context = runtime.default_context()
 
     if n < 8 {
-        return polynomial_grid_midpoint_single_thread(number_of_variables, max_degrees, coefficients, region, n, 0, 1)
+        return polynomial_grid_midpoint_integral_single_thread(number_of_variables, max_degrees, coefficients, region, n, 0, 1)
     }
 
     threads_data : [7]Thread_Data
@@ -250,13 +250,13 @@ polynomial_grid_midpoint :: proc "c" (
             i,
             proc(started: ^sync.Wait_Group, data: ^Thread_Data, i: int) {
                 sync.wait_group_done(started)
-                data.res = polynomial_grid_midpoint_single_thread(data.number_of_variables, data.max_degrees, data.coefficients, data.region, data.n, i, 8)
+                data.res = polynomial_grid_midpoint_integral_single_thread(data.number_of_variables, data.max_degrees, data.coefficients, data.region, data.n, i, 8)
             }
         )
     }
     sync.wait_group_wait(&started)
 
-    res := polynomial_grid_midpoint_single_thread(number_of_variables, max_degrees, coefficients, region, n, 7, 8)
+    res := polynomial_grid_midpoint_integral_single_thread(number_of_variables, max_degrees, coefficients, region, n, 7, 8)
 
     for i in 0..<7 {
         thread.join(threads[i])
